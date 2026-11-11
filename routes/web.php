@@ -28,8 +28,14 @@ use App\Http\Controllers\Storefront\CategoryController;
 use App\Http\Controllers\Storefront\HomeController;
 use App\Http\Controllers\Storefront\ProductController;
 use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
 
 Route::get('/', HomeController::class)->name('home');
+
+if (app()->environment(['local', 'testing'])) {
+    Route::get('design-system', fn () => Inertia::render('design-system'))
+        ->name('design-system');
+}
 
 Route::get('products', [ProductController::class, 'index'])->name('products.index');
 Route::get('products/{product:slug}', [ProductController::class, 'show'])->name('products.show');

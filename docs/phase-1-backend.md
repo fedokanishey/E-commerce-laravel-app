@@ -4,16 +4,16 @@ Single-vendor-storefront-style marketplace backend built with Laravel 13, Inerti
 
 ## Stack and environment
 
-| Concern | Choice |
-| --- | --- |
-| Runtime | PHP 8.3 |
-| Framework | Laravel 13.32 |
-| Frontend bridge | Inertia.js v3 (`inertiajs/inertia-laravel`) |
-| Auth | Session guard, `MustVerifyEmail`, database notifications |
-| Database | SQLite (`database/database.sqlite`) |
-| Testing | Pest 4 / PHPUnit, SQLite in-memory |
-| Static analysis | Larastan (PHPStan level 7) |
-| Formatting | Laravel Pint |
+| Concern         | Choice                                                   |
+| --------------- | -------------------------------------------------------- |
+| Runtime         | PHP 8.3                                                  |
+| Framework       | Laravel 13.32                                            |
+| Frontend bridge | Inertia.js v3 (`inertiajs/inertia-laravel`)              |
+| Auth            | Session guard, `MustVerifyEmail`, database notifications |
+| Database        | SQLite (`database/database.sqlite`)                      |
+| Testing         | Pest 4 / PHPUnit, SQLite in-memory                       |
+| Static analysis | Larastan (PHPStan level 7)                               |
+| Formatting      | Laravel Pint                                             |
 
 > **Database limitation.** This workspace has no MySQL server and no `pdo_mysql` extension, so SQLite is used. The schema avoids engine-specific SQL; the only MySQL-specific detail is that `lockForUpdate()` is a no-op on SQLite but remains in the code for MySQL/PostgreSQL deployments.
 
@@ -69,15 +69,15 @@ Controllers stay thin: validation lives in Form Requests, business rules in serv
 
 ## Authorization matrix
 
-| Resource | Rule |
-| --- | --- |
-| Product edit/delete | active seller who owns the product |
-| Seller order view | owning seller; status changes only for active sellers |
-| Order view/cancel | order owner; cancel only while fully pending |
-| Address edit/delete | address owner |
-| Review edit/delete | review author |
-| Seller profile | seller owner |
-| Cart/wishlist item mutation | cart/wishlist owner |
+| Resource                    | Rule                                                  |
+| --------------------------- | ----------------------------------------------------- |
+| Product edit/delete         | active seller who owns the product                    |
+| Seller order view           | owning seller; status changes only for active sellers |
+| Order view/cancel           | order owner; cancel only while fully pending          |
+| Address edit/delete         | address owner                                         |
+| Review edit/delete          | review author                                         |
+| Seller profile              | seller owner                                          |
+| Cart/wishlist item mutation | cart/wishlist owner                                   |
 
 ## Routes
 

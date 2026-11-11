@@ -1,11 +1,255 @@
 @import 'tailwindcss';
 
 @source '../views';
+@source '../js';
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
     --font-sans:
         'Instrument Sans', ui-sans-serif, system-ui, sans-serif,
         'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
         'Noto Color Emoji';
+
+    --color-canvas: var(--ds-canvas);
+    --color-surface: var(--ds-surface);
+    --color-surface-muted: var(--ds-surface-muted);
+    --color-surface-raised: var(--ds-surface-raised);
+    --color-ink: var(--ds-ink);
+    --color-ink-muted: var(--ds-ink-muted);
+    --color-ink-subtle: var(--ds-ink-subtle);
+    --color-line: var(--ds-line);
+    --color-line-strong: var(--ds-line-strong);
+
+    --color-brand: var(--ds-brand);
+    --color-brand-solid: var(--ds-brand-solid);
+    --color-brand-solid-hover: var(--ds-brand-solid-hover);
+    --color-on-brand: var(--ds-on-brand);
+    --color-brand-soft: var(--ds-brand-soft);
+    --color-brand-ink: var(--ds-brand-ink);
+
+    --color-danger: var(--ds-danger);
+    --color-danger-solid: var(--ds-danger-solid);
+    --color-on-danger: var(--ds-on-danger);
+    --color-danger-soft: var(--ds-danger-soft);
+    --color-danger-ink: var(--ds-danger-ink);
+    --color-warning: var(--ds-warning);
+    --color-warning-soft: var(--ds-warning-soft);
+    --color-warning-ink: var(--ds-warning-ink);
+    --color-success: var(--ds-success);
+    --color-success-soft: var(--ds-success-soft);
+    --color-success-ink: var(--ds-success-ink);
+    --color-info: var(--ds-info);
+    --color-info-soft: var(--ds-info-soft);
+    --color-info-ink: var(--ds-info-ink);
+
+    --color-rating: var(--ds-rating);
+    --color-rating-soft: var(--ds-rating-soft);
+    --color-overlay: var(--ds-overlay);
+
+    --radius-control: 0.625rem;
+    --radius-card: 1rem;
+    --radius-panel: 1.5rem;
+
+    --shadow-card: var(--ds-shadow-card);
+    --shadow-panel: var(--ds-shadow-panel);
+
+    --ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+
+    --spacing-gutter: 1.25rem;
+    --spacing-section: clamp(3.5rem, 7vw, 6rem);
+
+    --text-display: clamp(2.5rem, 5vw, 4.5rem);
+    --text-display--line-height: 0.98;
+    --text-display--letter-spacing: -0.045em;
+    --text-display--font-weight: 600;
+
+    --text-h1: clamp(2rem, 3.5vw, 3rem);
+    --text-h1--line-height: 1.08;
+    --text-h1--letter-spacing: -0.035em;
+    --text-h1--font-weight: 600;
+
+    --text-h2: clamp(1.5rem, 2.5vw, 2rem);
+    --text-h2--line-height: 1.15;
+    --text-h2--letter-spacing: -0.025em;
+    --text-h2--font-weight: 600;
+
+    --text-h3: 1.25rem;
+    --text-h3--line-height: 1.3;
+    --text-h3--letter-spacing: -0.015em;
+    --text-h3--font-weight: 600;
+
+    --text-body: 1rem;
+    --text-body--line-height: 1.6;
+
+    --text-small: 0.875rem;
+    --text-small--line-height: 1.5;
+
+    --text-caption: 0.75rem;
+    --text-caption--line-height: 1.4;
+
+    --text-eyebrow: 0.6875rem;
+    --text-eyebrow--line-height: 1.2;
+    --text-eyebrow--letter-spacing: 0.16em;
+    --text-eyebrow--font-weight: 600;
+
+    --animate-fade-in: fade-in 200ms var(--ease-smooth) both;
+    --animate-rise-in: rise-in 280ms var(--ease-smooth) both;
+}
+
+:root {
+    color-scheme: light;
+
+    --ds-canvas: #f5f5f1;
+    --ds-surface: #ffffff;
+    --ds-surface-muted: #edf0e9;
+    --ds-surface-raised: #ffffff;
+    --ds-ink: #1a211c;
+    --ds-ink-muted: #59635b;
+    --ds-ink-subtle: #788277;
+    --ds-line: #dfe4dc;
+    --ds-line-strong: #c8d0c6;
+
+    --ds-brand: #0b6549;
+    --ds-brand-solid: #0d674c;
+    --ds-brand-solid-hover: #0a563f;
+    --ds-on-brand: #ffffff;
+    --ds-brand-soft: #e5f4ed;
+    --ds-brand-ink: #084d38;
+
+    --ds-danger: #b42318;
+    --ds-danger-solid: #b42318;
+    --ds-on-danger: #ffffff;
+    --ds-danger-soft: #fef3f2;
+    --ds-danger-ink: #912018;
+    --ds-warning: #8a5a00;
+    --ds-warning-soft: #fffaeb;
+    --ds-warning-ink: #6f4800;
+    --ds-success: #0b6549;
+    --ds-success-soft: #e5f4ed;
+    --ds-success-ink: #084d38;
+    --ds-info: #175cd3;
+    --ds-info-soft: #eff8ff;
+    --ds-info-ink: #1849a9;
+
+    --ds-rating: #b7791f;
+    --ds-rating-soft: #fdf6e7;
+    --ds-overlay: rgb(15 23 18 / 0.55);
+
+    --ds-shadow-card:
+        0 1px 2px rgb(20 31 24 / 0.04), 0 10px 30px -18px rgb(20 31 24 / 0.25);
+    --ds-shadow-panel:
+        0 1px 2px rgb(20 31 24 / 0.05), 0 24px 60px -30px rgb(20 31 24 / 0.35);
+}
+
+.dark {
+    color-scheme: dark;
+
+    --ds-canvas: #0f1411;
+    --ds-surface: #161c18;
+    --ds-surface-muted: #1d2520;
+    --ds-surface-raised: #1a211c;
+    --ds-ink: #f2f5f1;
+    --ds-ink-muted: #aab4ab;
+    --ds-ink-subtle: #89948b;
+    --ds-line: #2a342d;
+    --ds-line-strong: #3b473e;
+
+    --ds-brand: #67d5b0;
+    --ds-brand-solid: #0d674c;
+    --ds-brand-solid-hover: #0f7a58;
+    --ds-on-brand: #ffffff;
+    --ds-brand-soft: #13362a;
+    --ds-brand-ink: #b6f3dc;
+
+    --ds-danger: #f97066;
+    --ds-danger-solid: #b42318;
+    --ds-on-danger: #ffffff;
+    --ds-danger-soft: #3b1714;
+    --ds-danger-ink: #fda29b;
+    --ds-warning: #fdb022;
+    --ds-warning-soft: #3a2a0c;
+    --ds-warning-ink: #fec84b;
+    --ds-success: #67d5b0;
+    --ds-success-soft: #13362a;
+    --ds-success-ink: #b6f3dc;
+    --ds-info: #84caff;
+    --ds-info-soft: #102a43;
+    --ds-info-ink: #b2ddff;
+
+    --ds-rating: #f5b544;
+    --ds-rating-soft: #362a12;
+    --ds-overlay: rgb(0 0 0 / 0.65);
+
+    --ds-shadow-card:
+        0 1px 2px rgb(0 0 0 / 0.3), 0 12px 30px -18px rgb(0 0 0 / 0.7);
+    --ds-shadow-panel:
+        0 1px 2px rgb(0 0 0 / 0.35), 0 28px 70px -30px rgb(0 0 0 / 0.8);
+}
+
+@layer base {
+    html {
+        scroll-behavior: smooth;
+    }
+
+    body {
+        @apply bg-canvas text-ink font-sans antialiased;
+    }
+
+    ::selection {
+        background: var(--ds-brand-soft);
+        color: var(--ds-brand-ink);
+    }
+}
+
+@utility ds-container {
+    margin-inline: auto;
+    width: 100%;
+    max-width: 80rem;
+    padding-inline: 1rem;
+
+    @media (min-width: 640px) {
+        padding-inline: 1.5rem;
+    }
+
+    @media (min-width: 1024px) {
+        padding-inline: 2rem;
+    }
+}
+
+@keyframes fade-in {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes rise-in {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html {
+        scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
 }
