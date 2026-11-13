@@ -28,6 +28,7 @@ export type UserSummary = {
 
 export type ProductCardData = {
     id: number | string;
+    slug?: string;
     name: string;
     href: string;
     price: number | string;

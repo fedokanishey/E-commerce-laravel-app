@@ -61,6 +61,9 @@ class HandleInertiaRequests extends Middleware
             'wishlistItemCount' => fn () => $user === null
                 ? 0
                 : ($user->wishlist?->items()->count() ?? 0),
+            'wishlistProductIds' => fn () => $user === null
+                ? []
+                : ($user->wishlist?->items()->pluck('product_id')->all() ?? []),
             'unreadNotificationsCount' => fn () => $user === null
                 ? 0
                 : $user->unreadNotifications()->count(),

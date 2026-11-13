@@ -67,7 +67,7 @@ class ProductController
 
         return Inertia::render('products/index', [
             'products' => $query->paginate($perPage)->withQueryString(),
-            'filters' => $filters,
+            'filters' => (object) $filters,
             'categories' => Category::query()
                 ->active()
                 ->orderBy('sort_order')
