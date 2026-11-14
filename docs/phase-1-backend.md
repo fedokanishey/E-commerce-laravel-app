@@ -98,7 +98,7 @@ Rate limiters (defined in `AppServiceProvider`): login 5/min per email+IP, regis
 ## Verification
 
 ```bash
-php artisan test --compact   # 81 tests, 380 assertions — passing
+php artisan test --compact   # 98 tests, 565 assertions — passing
 vendor/bin/phpstan analyse   # Larastan level 7 — 0 errors
 vendor/bin/pint --dirty      # clean
 ```

@@ -14,6 +14,8 @@ class ProductImageController extends Controller
 {
     public function store(ProductImageRequest $request, Product $product): RedirectResponse
     {
+        Gate::authorize('update', $product);
+
         $isPrimary = $request->boolean('is_primary');
         $hasImages = $product->images()->exists();
 

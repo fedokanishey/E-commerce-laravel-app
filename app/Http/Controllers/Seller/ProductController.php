@@ -47,6 +47,8 @@ class ProductController extends Controller
 
     public function create(): Response
     {
+        Gate::authorize('create', Product::class);
+
         return Inertia::render('seller/products/create', [
             'categories' => Category::query()->active()->orderBy('name')->get(['id', 'name', 'parent_id']),
             'statuses' => collect(ProductStatus::cases())

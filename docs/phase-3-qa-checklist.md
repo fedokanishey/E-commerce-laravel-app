@@ -6,9 +6,10 @@
 - Customer cart, wishlist, address, checkout, coupon, order isolation, order cancellation (including coupon usage release), notifications, reviews, and account settings.
 - Review ownership, editing, deletion, and product-page review state exposure.
 - Seller onboarding, profile/logo updates, product CRUD, image ownership, order isolation and status transitions, dashboard/statistics isolation, and inactive-seller access.
-- Authorization regressions for cross-user and cross-seller access.
+- Authorization regressions for cross-user and cross-seller access, including direct HTTP IDOR attempts against seller products, images, orders, profile data, dashboard/statistics, and onboarding payloads.
+- Full seller authorization audit documented in `docs/seller-authorization-audit.md`.
 
-Last full run: `php artisan test --compact` - 81 passed, 380 assertions.
+Last full run: `php artisan test --compact` - 98 passed, 565 assertions.
 
 ## Pending manual checks for the final comprehensive pass
 

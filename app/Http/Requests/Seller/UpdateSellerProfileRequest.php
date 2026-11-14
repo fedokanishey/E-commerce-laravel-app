@@ -8,7 +8,7 @@ class UpdateSellerProfileRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->seller !== null;
+        return $this->user()?->hasActiveSeller() ?? false;
     }
 
     /**
