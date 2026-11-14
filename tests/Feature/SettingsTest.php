@@ -49,4 +49,27 @@ class SettingsTest extends TestCase
             'email' => 'taken@example.com',
         ])->assertSessionHasErrors('email');
     }
+
+    public function test_users_cannot_delete_their_account_with_the_wrong_password(): void
+    {
+        $user = User::factory()->create(['password' => 'password']);
+
+        $this->actingAs($user)
+            ->delete(route('profile.destroy'), ['password' => 'wrong-password'])
+            ->assertSessionHasErrors('password', null, 'userDeletion');
+
+        $this->assertDatabaseHas('users', ['id' => $user->id]);
+    }
+
+    public function test_users_can_delete_their_account_and_are_logged_out(): void
+    {
+        $user = User::factory()->create(['password' => 'password']);
+
+        $this->actingAs($user)
+            ->delete(route('profile.destroy'), ['password' => 'password'])
+            ->assertRedirect(route('home'));
+
+        $this->assertDatabaseMissing('users', ['id' => $user->id]);
+        $this->assertGuest();
+    }
 }

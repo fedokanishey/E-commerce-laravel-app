@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\OrderStatus;
 use App\Enums\SellerOrderStatus;
+use App\Models\CouponUsage;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\SellerOrder;
@@ -48,6 +49,8 @@ class OrderCancellationService
                 'status' => OrderStatus::Cancelled,
                 'cancelled_at' => now(),
             ]);
+
+            CouponUsage::query()->where('order_id', $order->id)->delete();
 
             return $order;
         });

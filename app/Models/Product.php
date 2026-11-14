@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\ProductStatus;
+use App\Enums\SellerStatus;
 use Database\Factories\ProductFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Scope;
@@ -99,7 +100,9 @@ class Product extends Model
 
     public function isPubliclyVisible(): bool
     {
-        return $this->status === ProductStatus::Active && $this->is_approved;
+        return $this->status === ProductStatus::Active
+            && $this->is_approved
+            && $this->seller?->status === SellerStatus::Active;
     }
 
     public function isPurchasable(): bool
@@ -113,7 +116,9 @@ class Product extends Model
     #[Scope]
     protected function publicCatalog(Builder $query): void
     {
-        $query->where('status', ProductStatus::Active)->where('is_approved', true);
+        $query->where('status', ProductStatus::Active)
+            ->where('is_approved', true)
+            ->whereHas('seller', fn (Builder $query) => $query->where('status', SellerStatus::Active));
     }
 
     /**

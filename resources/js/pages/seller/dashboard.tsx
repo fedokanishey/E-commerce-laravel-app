@@ -21,27 +21,30 @@ type SellerDashboardProps = {
 export default function SellerDashboard({ overview }: SellerDashboardProps) {
     const { auth } = usePage<SharedData>().props;
     const seller = auth.seller;
+    const canManageStore = seller?.status === 'active';
 
-    const quickActions = [
-        {
-            label: 'Add a product',
-            description: 'List something new in your store.',
-            href: '/seller/products/create',
-            icon: 'plus' as const,
-        },
-        {
-            label: 'Manage orders',
-            description: 'Review and update fulfilment status.',
-            href: '/seller/orders',
-            icon: 'truck' as const,
-        },
-        {
-            label: 'Store settings',
-            description: 'Update your store name and logo.',
-            href: '/seller/profile',
-            icon: 'settings' as const,
-        },
-    ];
+    const quickActions = canManageStore
+        ? [
+              {
+                  label: 'Add a product',
+                  description: 'List something new in your store.',
+                  href: '/seller/products/create',
+                  icon: 'plus' as const,
+              },
+              {
+                  label: 'Manage orders',
+                  description: 'Review and update fulfilment status.',
+                  href: '/seller/orders',
+                  icon: 'truck' as const,
+              },
+              {
+                  label: 'Store settings',
+                  description: 'Update your store name and logo.',
+                  href: '/seller/profile',
+                  icon: 'settings' as const,
+              },
+          ]
+        : [];
 
     return (
         <>
@@ -51,13 +54,15 @@ export default function SellerDashboard({ overview }: SellerDashboardProps) {
                 title="Overview"
                 description={`A snapshot of ${seller?.store_name ?? 'your store'} activity.`}
                 action={
-                    <Link
-                        href="/seller/products/create"
-                        className={buttonStyles()}
-                    >
-                        <Icon name="plus" size="sm" />
-                        New product
-                    </Link>
+                    canManageStore ? (
+                        <Link
+                            href="/seller/products/create"
+                            className={buttonStyles()}
+                        >
+                            <Icon name="plus" size="sm" />
+                            New product
+                        </Link>
+                    ) : undefined
                 }
             >
                 {seller?.status === 'pending' && (
@@ -66,8 +71,9 @@ export default function SellerDashboard({ overview }: SellerDashboardProps) {
                         title="Your store is pending review"
                         className="mb-5"
                     >
-                        You can prepare products now. Your store becomes visible
-                        to customers once it is approved.
+                        You can review your dashboard while approval is
+                        completed. Product, order, and profile tools unlock once
+                        your store is active.
                     </Alert>
                 )}
 
@@ -121,150 +127,168 @@ export default function SellerDashboard({ overview }: SellerDashboardProps) {
                 </div>
 
                 <div className="mt-10 grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
-                    <div className="min-w-0">
-                        <SectionHeading
-                            eyebrow="Fulfilment"
-                            title="Recent orders"
-                            description="The latest orders placed with your store."
-                            action={
-                                overview.recentOrders.length > 0 ? (
-                                    <Link
-                                        href="/seller/orders"
-                                        className={buttonStyles({
-                                            variant: 'ghost',
-                                            size: 'sm',
-                                        })}
-                                    >
-                                        View all
-                                        <Icon name="arrow-right" size="sm" />
-                                    </Link>
-                                ) : undefined
-                            }
-                        />
-
-                        <div className="mt-5">
-                            {overview.recentOrders.length > 0 ? (
-                                <div className="space-y-3">
-                                    {overview.recentOrders.map((order) => {
-                                        const itemCount =
-                                            order.items?.reduce(
-                                                (total, item) =>
-                                                    total + item.quantity,
-                                                0,
-                                            ) ?? 0;
-
-                                        return (
-                                            <Link
-                                                key={order.id}
-                                                href={`/seller/orders/${order.id}`}
-                                                className={cn(
-                                                    cardSurface,
-                                                    'hover:border-brand/40 focus-visible:ring-brand/30 focus-visible:ring-offset-canvas block p-5 transition-colors focus-visible:ring-2 focus-visible:ring-offset-2',
-                                                )}
-                                            >
-                                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                                    <div className="min-w-0">
-                                                        <div className="flex flex-wrap items-center gap-2">
-                                                            <p className="text-small text-ink font-semibold">
-                                                                {order.order
-                                                                    ?.number ??
-                                                                    `Order #${order.order_id}`}
-                                                            </p>
-                                                            <Badge
-                                                                variant={orderStatusTone(
-                                                                    order.status,
-                                                                )}
-                                                                size="sm"
-                                                                dot
-                                                            >
-                                                                {orderStatusLabel(
-                                                                    order.status,
-                                                                )}
-                                                            </Badge>
-                                                        </div>
-                                                        <p className="text-caption text-ink-muted mt-1">
-                                                            {order.order?.user
-                                                                ?.name ??
-                                                                'Customer'}{' '}
-                                                            · {itemCount}{' '}
-                                                            {itemCount === 1
-                                                                ? 'item'
-                                                                : 'items'}{' '}
-                                                            ·{' '}
-                                                            {formatDate(
-                                                                order.created_at,
-                                                            )}
-                                                        </p>
-                                                    </div>
-
-                                                    <div className="flex items-center gap-4">
-                                                        <span className="text-small text-ink font-semibold">
-                                                            {formatCurrency(
-                                                                order.total,
-                                                            )}
-                                                        </span>
-                                                        <Icon
-                                                            name="chevron-right"
-                                                            size="sm"
-                                                            className="text-ink-subtle"
-                                                        />
-                                                    </div>
-                                                </div>
-                                            </Link>
-                                        );
-                                    })}
-                                </div>
-                            ) : (
-                                <EmptyState
-                                    title="No orders yet"
-                                    description="Orders from customers will appear here as soon as they arrive."
-                                    icon="truck"
-                                    action={
+                    {canManageStore ? (
+                        <div className="min-w-0">
+                            <SectionHeading
+                                eyebrow="Fulfilment"
+                                title="Recent orders"
+                                description="The latest orders placed with your store."
+                                action={
+                                    overview.recentOrders.length > 0 ? (
                                         <Link
-                                            href="/seller/products/create"
-                                            className={buttonStyles()}
+                                            href="/seller/orders"
+                                            className={buttonStyles({
+                                                variant: 'ghost',
+                                                size: 'sm',
+                                            })}
                                         >
-                                            Add your first product
-                                        </Link>
-                                    }
-                                />
-                            )}
-                        </div>
-                    </div>
-
-                    <aside className="space-y-5">
-                        <section className={cn(cardSurface, 'p-5')}>
-                            <h2 className="text-h3 text-ink">Quick actions</h2>
-                            <div className="mt-3 space-y-2">
-                                {quickActions.map((action) => (
-                                    <Link
-                                        key={action.href}
-                                        href={action.href}
-                                        className="hover:bg-surface-muted rounded-control flex items-center gap-3 px-2 py-2.5 transition-colors"
-                                    >
-                                        <span className="bg-brand-soft text-brand-ink flex size-9 shrink-0 items-center justify-center rounded-full">
+                                            View all
                                             <Icon
-                                                name={action.icon}
+                                                name="arrow-right"
                                                 size="sm"
                                             />
-                                        </span>
-                                        <span className="min-w-0 flex-1">
-                                            <span className="text-small text-ink block font-medium">
-                                                {action.label}
-                                            </span>
-                                            <span className="text-caption text-ink-muted block">
-                                                {action.description}
-                                            </span>
-                                        </span>
-                                        <Icon
-                                            name="chevron-right"
-                                            size="sm"
-                                            className="text-ink-subtle shrink-0"
-                                        />
-                                    </Link>
-                                ))}
+                                        </Link>
+                                    ) : undefined
+                                }
+                            />
+
+                            <div className="mt-5">
+                                {overview.recentOrders.length > 0 ? (
+                                    <div className="space-y-3">
+                                        {overview.recentOrders.map((order) => {
+                                            const itemCount =
+                                                order.items?.reduce(
+                                                    (total, item) =>
+                                                        total + item.quantity,
+                                                    0,
+                                                ) ?? 0;
+
+                                            return (
+                                                <Link
+                                                    key={order.id}
+                                                    href={`/seller/orders/${order.id}`}
+                                                    className={cn(
+                                                        cardSurface,
+                                                        'hover:border-brand/40 focus-visible:ring-brand/30 focus-visible:ring-offset-canvas block p-5 transition-colors focus-visible:ring-2 focus-visible:ring-offset-2',
+                                                    )}
+                                                >
+                                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                                        <div className="min-w-0">
+                                                            <div className="flex flex-wrap items-center gap-2">
+                                                                <p className="text-small text-ink font-semibold">
+                                                                    {order.order
+                                                                        ?.number ??
+                                                                        `Order #${order.order_id}`}
+                                                                </p>
+                                                                <Badge
+                                                                    variant={orderStatusTone(
+                                                                        order.status,
+                                                                    )}
+                                                                    size="sm"
+                                                                    dot
+                                                                >
+                                                                    {orderStatusLabel(
+                                                                        order.status,
+                                                                    )}
+                                                                </Badge>
+                                                            </div>
+                                                            <p className="text-caption text-ink-muted mt-1">
+                                                                {order.order
+                                                                    ?.user
+                                                                    ?.name ??
+                                                                    'Customer'}{' '}
+                                                                · {itemCount}{' '}
+                                                                {itemCount === 1
+                                                                    ? 'item'
+                                                                    : 'items'}{' '}
+                                                                ·{' '}
+                                                                {formatDate(
+                                                                    order.created_at,
+                                                                )}
+                                                            </p>
+                                                        </div>
+
+                                                        <div className="flex items-center gap-4">
+                                                            <span className="text-small text-ink font-semibold">
+                                                                {formatCurrency(
+                                                                    order.total,
+                                                                )}
+                                                            </span>
+                                                            <Icon
+                                                                name="chevron-right"
+                                                                size="sm"
+                                                                className="text-ink-subtle"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </Link>
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    <EmptyState
+                                        title="No orders yet"
+                                        description="Orders from customers will appear here as soon as they arrive."
+                                        icon="truck"
+                                        action={
+                                            <Link
+                                                href="/seller/products/create"
+                                                className={buttonStyles()}
+                                            >
+                                                Add your first product
+                                            </Link>
+                                        }
+                                    />
+                                )}
                             </div>
+                        </div>
+                    ) : (
+                        <section className={cn(cardSurface, 'p-5')}>
+                            <h2 className="text-h3 text-ink">Store tools</h2>
+                            <p className="text-small text-ink-muted mt-2">
+                                Product, order, and profile tools become
+                                available once your store is active.
+                            </p>
                         </section>
+                    )}
+
+                    <aside className="space-y-5">
+                        {quickActions.length > 0 && (
+                            <section className={cn(cardSurface, 'p-5')}>
+                                <h2 className="text-h3 text-ink">
+                                    Quick actions
+                                </h2>
+                                <div className="mt-3 space-y-2">
+                                    {quickActions.map((action) => (
+                                        <Link
+                                            key={action.href}
+                                            href={action.href}
+                                            className="hover:bg-surface-muted rounded-control flex items-center gap-3 px-2 py-2.5 transition-colors"
+                                        >
+                                            <span className="bg-brand-soft text-brand-ink flex size-9 shrink-0 items-center justify-center rounded-full">
+                                                <Icon
+                                                    name={action.icon}
+                                                    size="sm"
+                                                />
+                                            </span>
+                                            <span className="min-w-0 flex-1">
+                                                <span className="text-small text-ink block font-medium">
+                                                    {action.label}
+                                                </span>
+                                                <span className="text-caption text-ink-muted block">
+                                                    {action.description}
+                                                </span>
+                                            </span>
+                                            <Icon
+                                                name="chevron-right"
+                                                size="sm"
+                                                className="text-ink-subtle shrink-0"
+                                            />
+                                        </Link>
+                                    ))}
+                                </div>
+                            </section>
+                        )}
 
                         <section className={cn(cardSurface, 'p-5')}>
                             <h2 className="text-h3 text-ink">Best sellers</h2>

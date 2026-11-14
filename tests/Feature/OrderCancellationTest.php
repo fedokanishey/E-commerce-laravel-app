@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Enums\OrderStatus;
 use App\Enums\SellerOrderStatus;
+use App\Models\Coupon;
+use App\Models\CouponUsage;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
@@ -35,6 +37,12 @@ class OrderCancellationTest extends TestCase
             'seller_id' => $seller->id,
             'quantity' => 2,
         ]);
+        $coupon = Coupon::factory()->create();
+        CouponUsage::factory()->create([
+            'coupon_id' => $coupon->id,
+            'user_id' => $user->id,
+            'order_id' => $order->id,
+        ]);
 
         $this->actingAs($user)
             ->post(route('orders.cancel', $order))
@@ -43,6 +51,7 @@ class OrderCancellationTest extends TestCase
         $this->assertSame(OrderStatus::Cancelled, $order->refresh()->status);
         $this->assertSame(5, $product->refresh()->stock);
         $this->assertSame(SellerOrderStatus::Cancelled, $sellerOrder->refresh()->status);
+        $this->assertDatabaseMissing('coupon_usages', ['order_id' => $order->id]);
     }
 
     public function test_customers_cannot_cancel_orders_that_sellers_have_started(): void

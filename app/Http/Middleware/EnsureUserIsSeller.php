@@ -19,8 +19,12 @@ class EnsureUserIsSeller
         }
 
         if (! $seller->isActive()) {
+            if ($request->routeIs('seller.dashboard')) {
+                return $next($request);
+            }
+
             return redirect()
-                ->route('seller.onboarding.create')
+                ->route('seller.dashboard')
                 ->with('error', 'Your seller account is not active.');
         }
 

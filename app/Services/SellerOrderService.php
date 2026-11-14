@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
 use App\Enums\SellerOrderStatus;
+use App\Models\CouponUsage;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\SellerOrder;
@@ -82,6 +83,10 @@ class SellerOrderService
             'status' => $orderStatus,
             'cancelled_at' => $orderStatus === OrderStatus::Cancelled ? now() : null,
         ]);
+
+        if ($orderStatus === OrderStatus::Cancelled) {
+            CouponUsage::query()->where('order_id', $order->id)->delete();
+        }
 
         if ($orderStatus === OrderStatus::Delivered) {
             $order->payment()->update([

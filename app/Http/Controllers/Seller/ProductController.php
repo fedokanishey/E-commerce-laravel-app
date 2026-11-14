@@ -79,7 +79,7 @@ class ProductController extends Controller
 
     public function show(Product $product): Response
     {
-        Gate::authorize('view', $product);
+        Gate::authorize('viewSeller', $product);
 
         $product->load(['images', 'category', 'reviews.user:id,name']);
 

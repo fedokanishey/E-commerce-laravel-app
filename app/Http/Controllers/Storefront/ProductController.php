@@ -96,6 +96,9 @@ class ProductController
         $reviewsQuery = $product->reviews();
         $averageRating = round((float) (clone $reviewsQuery)->avg('rating'), 2);
         $reviewCount = (clone $reviewsQuery)->count();
+        $userReview = $user !== null
+            ? $user->reviews()->where('product_id', $product->id)->first()
+            : null;
 
         $relatedProducts = Product::query()
             ->publicCatalog()
@@ -112,7 +115,8 @@ class ProductController
             'averageRating' => $averageRating,
             'reviewCount' => $reviewCount,
             'relatedProducts' => $relatedProducts,
-            'canReview' => $user !== null && ! $user->reviews()->where('product_id', $product->id)->exists(),
+            'canReview' => $user !== null && $userReview === null,
+            'userReview' => $userReview,
         ]);
     }
 }

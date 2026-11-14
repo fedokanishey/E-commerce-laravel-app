@@ -56,8 +56,8 @@ Controllers stay thin: validation lives in Form Requests, business rules in serv
 
 ## Domain rules
 
-- **Public catalog** = `status = active` **and** `is_approved = true`. Draft, inactive, unapproved and out-of-stock products are hidden or blocked at checkout.
-- **Seller onboarding** creates an `active` seller immediately so the seller journey works end-to-end. `pending` and `suspended` remain available to moderation. `EnsureUserIsSeller` blocks non-active sellers from all `/seller/*` routes except onboarding.
+- **Public catalog** = `status = active`, `is_approved = true` **and** the owning seller is active. Draft, inactive, unapproved, suspended-seller and out-of-stock products are hidden or blocked at checkout.
+- **Seller onboarding** creates an `active` seller immediately so the seller journey works end-to-end. `pending` and `suspended` remain available to moderation. `EnsureUserIsSeller` lets non-active sellers reach the dashboard to see their status, and redirects their other `/seller/*` requests back to that dashboard.
 - **Cart** is one per user, created lazily. Quantity is bounded by current stock; unavailable products are rejected with validation errors.
 - **Wishlist** is one per user; toggling returns added/removed feedback and products can move directly into the cart.
 - **Coupons** support fixed and percentage discounts, minimum order value, maximum discount cap, start/end window, total usage limit and per-user limit. Usage is recorded only after a successful checkout.
@@ -85,7 +85,7 @@ Public: `/`, `/products`, `/products/{slug}`, `/categories`, `/categories/{slug}
 
 Guest only: `/register`, `/login`, `/forgot-password`, `/reset-password/{token}`.
 
-Authenticated: `/dashboard`, `/verify-email`, `/profile`, `/password`, `/cart`, `/wishlist`, `/addresses`, `/checkout`, `/orders`, `/reviews`, `/notifications`, `/seller/onboarding`.
+Authenticated: `/dashboard`, `/verify-email`, `/profile`, `/password`, `/cart`, `/wishlist`, `/addresses`, `/checkout`, `/orders`, `/notifications`, `/seller/onboarding`, plus review create/update/delete on `/products/{product}/reviews` and `/reviews/{review}`.
 
 Seller (`auth` + `seller` middleware): `/seller` dashboard, `/seller/statistics`, `/seller/profile`, `/seller/products` CRUD + image upload/delete, `/seller/orders` and status transitions.
 
@@ -98,20 +98,20 @@ Rate limiters (defined in `AppServiceProvider`): login 5/min per email+IP, regis
 ## Verification
 
 ```bash
-php artisan test --compact   # 35 tests, 134 assertions — passing
+php artisan test --compact   # 81 tests, 380 assertions — passing
 vendor/bin/phpstan analyse   # Larastan level 7 — 0 errors
 vendor/bin/pint --dirty      # clean
 ```
 
-Covered flows: registration/login/logout, catalog visibility and search, cart stock limits and ownership, wishlist toggle/move-to-cart, first-address defaulting, coupon-aware multi-seller checkout, cancellation with stock restore, seller onboarding and product ownership, seller status transitions with COD capture, verified-purchase reviews, and profile/password settings.
+Covered flows: registration/login/logout, catalog visibility and search, cart stock limits and ownership, wishlist toggle/move-to-cart, first-address defaulting, coupon-aware multi-seller checkout, cancellation with stock restore and coupon usage release, seller onboarding and product ownership, seller status transitions with COD capture, verified-purchase reviews, review editing/deletion, and profile/password settings.
 
 Seeders were executed successfully against the local SQLite database.
 
 ## Known limitations and next phases
 
-- Pages/components referenced by Inertia (`home`, `products/index`, `dashboard`, seller and account screens, etc.) do not exist yet; Phase 3 builds them. Tests disable Vite and page-existence checks accordingly.
+- Phase 3 pages are implemented, including customer review editing and deletion. Final browser-based QA is tracked in `docs/phase-3-qa-checklist.md`.
 - Product image uploads use the `public` disk; run `php artisan storage:link` in any environment that serves them.
 - No admin UI for approving products or moderating sellers in Phase 1; decisions are represented in the schema and console/DB.
 - Coupon discounts are applied at order level only; seller payouts are not netted in Phase 1.
 - Email verification is wired but app routes are not yet wrapped in the `verified` middleware; mail uses the `log` driver.
-- Phase 2 (atomic component design system) and Phase 3 (pages and integration) follow.
+- Phase 2 (atomic component design system) and Phase 3 (pages and integration) are complete; final browser QA follows.

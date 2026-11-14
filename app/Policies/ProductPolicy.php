@@ -19,6 +19,11 @@ class ProductPolicy
             return true;
         }
 
+        return $this->viewSeller($user, $product);
+    }
+
+    public function viewSeller(User $user, Product $product): bool
+    {
         return $user->seller !== null && $user->seller->id === $product->seller_id;
     }
 

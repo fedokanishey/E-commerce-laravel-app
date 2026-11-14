@@ -55,6 +55,9 @@ export function SellerShell({
     const isActive = (href: string) =>
         href === '/seller' ? path === href : path.startsWith(href);
 
+    const visibleNavItems =
+        seller?.status === 'active' ? navItems : navItems.slice(0, 1);
+
     return (
         <PublicShell>
             <div className="ds-container py-8 lg:py-12">
@@ -119,7 +122,7 @@ export function SellerShell({
                             className="rounded-panel border-line bg-surface p-2"
                         >
                             <ul className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-1">
-                                {navItems.map((item) => {
+                                {visibleNavItems.map((item) => {
                                     const active = isActive(item.href);
 
                                     return (

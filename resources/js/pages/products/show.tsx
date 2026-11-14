@@ -1,5 +1,5 @@
-import { Head, Link, useForm, usePage } from '@inertiajs/react';
-import { useState } from 'react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
+import { useEffect, useState } from 'react';
 import { Avatar } from '@/components/atoms/avatar';
 import { Badge } from '@/components/atoms/badge';
 import { Button, buttonStyles } from '@/components/atoms/button';
@@ -10,6 +10,7 @@ import { Select } from '@/components/atoms/select';
 import { StockStatus } from '@/components/atoms/stock-status';
 import { Textarea } from '@/components/atoms/textarea';
 import { Breadcrumbs } from '@/components/molecules/breadcrumbs';
+import { Modal } from '@/components/molecules/modal';
 import { SectionHeading } from '@/components/molecules/section-heading';
 import { Tabs } from '@/components/molecules/tabs';
 import { QuantityStepper } from '@/components/molecules/quantity-stepper';
@@ -33,6 +34,7 @@ type ProductShowProps = {
     reviewCount: number;
     relatedProducts: Product[];
     canReview: boolean;
+    userReview: ProductReview | null;
 };
 
 function ReviewItem({ review }: { review: ProductReview }) {
@@ -83,6 +85,7 @@ export default function ProductShow({
     reviewCount,
     relatedProducts,
     canReview,
+    userReview,
 }: ProductShowProps) {
     const { auth } = usePage<SharedData>().props;
     const { addingIds, wishlistedIds, addToCart, toggleWishlist } =
@@ -90,10 +93,22 @@ export default function ProductShow({
     const [activeImage, setActiveImage] = useState(0);
     const [quantity, setQuantity] = useState(1);
     const [activeTab, setActiveTab] = useState('description');
+    const [editingReview, setEditingReview] = useState(false);
+    const [confirmingReviewDelete, setConfirmingReviewDelete] = useState(false);
+    const [deletingReview, setDeletingReview] = useState(false);
     const reviewForm = useForm({
         rating: 5,
         comment: '',
     });
+    const reviewId = userReview?.id ?? null;
+
+    useEffect(() => {
+        reviewForm.setData({
+            rating: userReview?.rating ?? 5,
+            comment: userReview?.comment ?? '',
+        });
+        setEditingReview(false);
+    }, [reviewId]);
 
     const images = product.images ?? [];
     const selectedImage = images[activeImage] ?? primaryImage(product);
@@ -104,10 +119,42 @@ export default function ProductShow({
     const maxQuantity = Math.max(1, Math.min(product.stock, 99));
 
     const submitReview = () => {
+        if (userReview) {
+            reviewForm.patch(`/reviews/${userReview.id}`, {
+                preserveScroll: true,
+                onSuccess: () => setEditingReview(false),
+            });
+
+            return;
+        }
+
         reviewForm.post(`/products/${product.slug}/reviews`, {
             preserveScroll: true,
             onSuccess: () => reviewForm.reset(),
         });
+    };
+
+    const deleteReview = () => {
+        if (!userReview) {
+            return;
+        }
+
+        setDeletingReview(true);
+
+        router.delete(`/reviews/${userReview.id}`, {
+            preserveScroll: true,
+            onSuccess: () => setConfirmingReviewDelete(false),
+            onFinish: () => setDeletingReview(false),
+        });
+    };
+
+    const cancelReviewEdit = () => {
+        setEditingReview(false);
+        reviewForm.setData({
+            rating: userReview?.rating ?? 5,
+            comment: userReview?.comment ?? '',
+        });
+        reviewForm.clearErrors();
     };
 
     const reviewContent = (
@@ -133,7 +180,13 @@ export default function ProductShow({
             </div>
 
             <div className="rounded-card border-line bg-surface-muted/50 h-fit border p-5">
-                <h3 className="text-h3 text-ink">Write a review</h3>
+                <h3 className="text-h3 text-ink">
+                    {userReview
+                        ? editingReview
+                            ? 'Edit your review'
+                            : 'Your review'
+                        : 'Write a review'}
+                </h3>
 
                 {!auth.user ? (
                     <div className="mt-3">
@@ -151,12 +204,46 @@ export default function ProductShow({
                             Sign in to review
                         </Link>
                     </div>
-                ) : !canReview ? (
-                    <p className="text-small text-ink-muted mt-3">
-                        You have already reviewed this product. Thanks for
-                        sharing your thoughts.
-                    </p>
-                ) : (
+                ) : userReview && !editingReview ? (
+                    <div className="mt-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Rating value={userReview.rating} />
+                            <Badge variant="brand" size="sm">
+                                Published
+                            </Badge>
+                        </div>
+
+                        <p className="text-small text-ink-muted mt-3 whitespace-pre-line">
+                            {userReview.comment?.trim() ||
+                                'You did not add a written comment.'}
+                        </p>
+
+                        <p className="text-caption text-ink-subtle mt-3">
+                            Updated{' '}
+                            {formatStorefrontDate(userReview.updated_at)}
+                        </p>
+
+                        <div className="border-line mt-4 flex flex-wrap gap-2 border-t pt-4">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setEditingReview(true)}
+                            >
+                                <Icon name="settings" size="sm" />
+                                Edit review
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-danger-ink hover:bg-danger-soft hover:text-danger-ink"
+                                onClick={() => setConfirmingReviewDelete(true)}
+                            >
+                                <Icon name="trash" size="sm" />
+                                Delete
+                            </Button>
+                        </div>
+                    </div>
+                ) : userReview || canReview ? (
                     <form
                         onSubmit={(event) => {
                             event.preventDefault();
@@ -202,9 +289,24 @@ export default function ProductShow({
                             fullWidth
                             loading={reviewForm.processing}
                         >
-                            Post review
+                            {userReview ? 'Save changes' : 'Post review'}
                         </Button>
+
+                        {userReview && (
+                            <Button
+                                variant="outline"
+                                fullWidth
+                                onClick={cancelReviewEdit}
+                            >
+                                Cancel
+                            </Button>
+                        )}
                     </form>
+                ) : (
+                    <p className="text-small text-ink-muted mt-3">
+                        You have already reviewed this product. Thanks for
+                        sharing your thoughts.
+                    </p>
                 )}
             </div>
         </div>
@@ -553,6 +655,36 @@ export default function ProductShow({
                     </section>
                 )}
             </PublicShell>
+
+            <Modal
+                open={confirmingReviewDelete}
+                onClose={() => setConfirmingReviewDelete(false)}
+                title="Delete your review?"
+                description={product.name}
+                size="sm"
+                footer={
+                    <>
+                        <Button
+                            variant="outline"
+                            onClick={() => setConfirmingReviewDelete(false)}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="danger"
+                            loading={deletingReview}
+                            onClick={deleteReview}
+                        >
+                            Delete review
+                        </Button>
+                    </>
+                }
+            >
+                <p className="text-small text-ink-muted">
+                    Your rating and comment will be removed from this product.
+                    You can write a new review afterwards.
+                </p>
+            </Modal>
         </>
     );
 }
