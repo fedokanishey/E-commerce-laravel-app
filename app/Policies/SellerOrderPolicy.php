@@ -19,4 +19,9 @@ class SellerOrderPolicy
         return $user->seller?->status === SellerStatus::Active
             && $user->seller->id === $sellerOrder->seller_id;
     }
+
+    public function confirmCashCollection(User $user, SellerOrder $sellerOrder): bool
+    {
+        return $this->updateStatus($user, $sellerOrder);
+    }
 }

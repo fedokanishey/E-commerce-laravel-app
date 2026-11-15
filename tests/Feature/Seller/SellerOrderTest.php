@@ -12,7 +12,9 @@ use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\Seller;
 use App\Models\SellerOrder;
+use App\Notifications\OrderCancelled;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -20,11 +22,14 @@ class SellerOrderTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_sellers_can_progress_their_orders_and_payment_is_captured_on_delivery(): void
+    public function test_sellers_can_progress_their_orders_and_payment_is_collected_after_delivery(): void
     {
         $seller = Seller::factory()->create();
         $product = Product::factory()->create(['seller_id' => $seller->id, 'stock' => 5]);
-        $order = Order::factory()->create();
+        $order = Order::factory()->create([
+            'subtotal' => 100,
+            'grand_total' => 100,
+        ]);
         $order->payment()->create([
             'method' => 'cod',
             'status' => PaymentStatus::Pending,
@@ -34,6 +39,9 @@ class SellerOrderTest extends TestCase
             'order_id' => $order->id,
             'seller_id' => $seller->id,
             'status' => SellerOrderStatus::Pending,
+            'subtotal' => 100,
+            'discount_total' => 0,
+            'total' => 100,
         ]);
         OrderItem::factory()->create([
             'order_id' => $order->id,
@@ -70,7 +78,54 @@ class SellerOrderTest extends TestCase
 
         $this->assertSame(SellerOrderStatus::Delivered, $sellerOrder->refresh()->status);
         $this->assertSame(OrderStatus::Delivered, $order->refresh()->status);
+        $this->assertSame(PaymentStatus::Pending, $order->payment->refresh()->status);
+        $this->assertSame(100.0, (float) $order->payment->amount);
+        $this->assertNull($sellerOrder->cod_collected_at);
+
+        $this->actingAs($seller->user)
+            ->post(route('seller.orders.cod-collection', $sellerOrder))
+            ->assertRedirect();
+
+        $this->assertNotNull($sellerOrder->refresh()->cod_collected_at);
         $this->assertSame(PaymentStatus::Paid, $order->payment->refresh()->status);
+        $this->assertNotNull($order->payment->paid_at);
+    }
+
+    public function test_sellers_cannot_confirm_cash_collection_before_delivery(): void
+    {
+        $seller = Seller::factory()->create();
+        $order = Order::factory()->create();
+        $order->payment()->create([
+            'method' => 'cod',
+            'status' => PaymentStatus::Pending,
+            'amount' => 100,
+        ]);
+        $sellerOrder = SellerOrder::factory()->create([
+            'order_id' => $order->id,
+            'seller_id' => $seller->id,
+            'status' => SellerOrderStatus::Shipped,
+        ]);
+
+        $this->actingAs($seller->user)
+            ->post(route('seller.orders.cod-collection', $sellerOrder))
+            ->assertSessionHasErrors('status');
+
+        $this->assertNull($sellerOrder->refresh()->cod_collected_at);
+        $this->assertSame(PaymentStatus::Pending, $order->payment->refresh()->status);
+    }
+
+    public function test_sellers_cannot_confirm_cash_collection_for_another_sellers_order(): void
+    {
+        $seller = Seller::factory()->create();
+        $other = Seller::factory()->create();
+        $sellerOrder = SellerOrder::factory()->create([
+            'seller_id' => $other->id,
+            'status' => SellerOrderStatus::Delivered,
+        ]);
+
+        $this->actingAs($seller->user)
+            ->post(route('seller.orders.cod-collection', $sellerOrder))
+            ->assertForbidden();
     }
 
     public function test_sellers_cannot_update_another_sellers_order(): void
@@ -117,20 +172,29 @@ class SellerOrderTest extends TestCase
         $seller = Seller::factory()->create();
         $other = Seller::factory()->create();
         $product = Product::factory()->create(['seller_id' => $seller->id, 'stock' => 5]);
-        $order = Order::factory()->create();
+        $order = Order::factory()->create([
+            'subtotal' => 150,
+            'grand_total' => 150,
+        ]);
         $order->payment()->create([
             'method' => 'cod',
             'status' => PaymentStatus::Pending,
-            'amount' => 100,
+            'amount' => 150,
         ]);
         $cancelledSellerOrder = SellerOrder::factory()->create([
             'order_id' => $order->id,
             'seller_id' => $seller->id,
+            'subtotal' => 50,
+            'discount_total' => 0,
+            'total' => 50,
         ]);
         $activeSellerOrder = SellerOrder::factory()->create([
             'order_id' => $order->id,
             'seller_id' => $other->id,
             'status' => SellerOrderStatus::Processing,
+            'subtotal' => 100,
+            'discount_total' => 0,
+            'total' => 100,
         ]);
         OrderItem::factory()->create([
             'order_id' => $order->id,
@@ -151,17 +215,29 @@ class SellerOrderTest extends TestCase
         $this->assertSame(SellerOrderStatus::Processing, $activeSellerOrder->refresh()->status);
         $this->assertSame(OrderStatus::Processing, $order->refresh()->status);
         $this->assertSame(PaymentStatus::Pending, $order->payment->refresh()->status);
+        $this->assertSame(100.0, (float) $order->payment->amount);
     }
 
     public function test_cancelling_the_last_seller_order_releases_coupon_usage(): void
     {
         $seller = Seller::factory()->create();
         $product = Product::factory()->create(['seller_id' => $seller->id, 'stock' => 5]);
-        $order = Order::factory()->create();
+        $order = Order::factory()->create([
+            'subtotal' => 100,
+            'grand_total' => 100,
+        ]);
+        $order->payment()->create([
+            'method' => 'cod',
+            'status' => PaymentStatus::Pending,
+            'amount' => 100,
+        ]);
         $sellerOrder = SellerOrder::factory()->create([
             'order_id' => $order->id,
             'seller_id' => $seller->id,
             'status' => SellerOrderStatus::Pending,
+            'subtotal' => 100,
+            'discount_total' => 0,
+            'total' => 100,
         ]);
         OrderItem::factory()->create([
             'order_id' => $order->id,
@@ -186,13 +262,18 @@ class SellerOrderTest extends TestCase
         $this->assertSame(OrderStatus::Cancelled, $order->refresh()->status);
         $this->assertSame(7, $product->refresh()->stock);
         $this->assertDatabaseMissing('coupon_usages', ['order_id' => $order->id]);
+        $this->assertSame(PaymentStatus::Voided, $order->payment->refresh()->status);
+        $this->assertSame(0.0, (float) $order->payment->amount);
     }
 
-    public function test_order_is_delivered_and_paid_only_after_all_active_seller_orders_deliver(): void
+    public function test_order_is_delivered_before_payment_and_paid_only_after_all_cash_is_collected(): void
     {
         $sellerA = Seller::factory()->create();
         $sellerB = Seller::factory()->create();
-        $order = Order::factory()->create();
+        $order = Order::factory()->create([
+            'subtotal' => 100,
+            'grand_total' => 100,
+        ]);
         $order->payment()->create([
             'method' => 'cod',
             'status' => PaymentStatus::Pending,
@@ -201,10 +282,16 @@ class SellerOrderTest extends TestCase
         $sellerOrderA = SellerOrder::factory()->create([
             'order_id' => $order->id,
             'seller_id' => $sellerA->id,
+            'subtotal' => 60,
+            'discount_total' => 0,
+            'total' => 60,
         ]);
         $sellerOrderB = SellerOrder::factory()->create([
             'order_id' => $order->id,
             'seller_id' => $sellerB->id,
+            'subtotal' => 40,
+            'discount_total' => 0,
+            'total' => 40,
         ]);
 
         foreach ([SellerOrderStatus::Processing, SellerOrderStatus::Shipped, SellerOrderStatus::Delivered] as $status) {
@@ -227,6 +314,21 @@ class SellerOrderTest extends TestCase
         }
 
         $this->assertSame(OrderStatus::Delivered, $order->refresh()->status);
+        $this->assertSame(PaymentStatus::Pending, $order->payment->refresh()->status);
+        $this->assertSame(100.0, (float) $order->payment->amount);
+
+        $this->actingAs($sellerA->user)
+            ->post(route('seller.orders.cod-collection', $sellerOrderA))
+            ->assertRedirect();
+
+        $this->assertSame(PaymentStatus::Pending, $order->payment->refresh()->status);
+
+        $this->actingAs($sellerB->user)
+            ->post(route('seller.orders.cod-collection', $sellerOrderB))
+            ->assertRedirect();
+
         $this->assertSame(PaymentStatus::Paid, $order->payment->refresh()->status);
+        $this->assertNotNull($sellerOrderA->refresh()->cod_collected_at);
+        $this->assertNotNull($sellerOrderB->refresh()->cod_collected_at);
     }
 }

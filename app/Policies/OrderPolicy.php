@@ -16,12 +16,19 @@ class OrderPolicy
 
     public function cancel(User $user, Order $order): bool
     {
-        if ($user->id !== $order->user_id || $order->status !== OrderStatus::Pending) {
+        if ($user->id !== $order->user_id || $order->status === OrderStatus::Cancelled) {
             return false;
         }
 
-        return ! $order->sellerOrders()
-            ->where('status', '!=', SellerOrderStatus::Pending)
-            ->exists();
+        $activeStatuses = $order->sellerOrders()
+            ->where('status', '!=', SellerOrderStatus::Cancelled)
+            ->pluck('status');
+
+        return $activeStatuses->isNotEmpty()
+            && $activeStatuses->every(
+                fn (SellerOrderStatus|string $status) => ($status instanceof SellerOrderStatus
+                    ? $status
+                    : SellerOrderStatus::from($status)) === SellerOrderStatus::Pending
+            );
     }
 }

@@ -33,7 +33,7 @@ export function orderStatusTone(status: OrderStatus): StatusTone {
 }
 
 export function paymentStatusTone(
-    status: 'pending' | 'paid' | 'failed' | 'refunded',
+    status: 'pending' | 'paid' | 'failed' | 'refunded' | 'voided',
 ): StatusTone {
     return status === 'paid'
         ? 'success'
@@ -41,21 +41,24 @@ export function paymentStatusTone(
           ? 'danger'
           : status === 'refunded'
             ? 'info'
-            : 'warning';
+            : status === 'voided'
+              ? 'neutral'
+              : 'warning';
 }
 
 const paymentStatusLabels: Record<
-    'pending' | 'paid' | 'failed' | 'refunded',
+    'pending' | 'paid' | 'failed' | 'refunded' | 'voided',
     string
 > = {
     pending: 'Pending',
     paid: 'Paid',
     failed: 'Failed',
     refunded: 'Refunded',
+    voided: 'Voided',
 };
 
 export function paymentStatusLabel(
-    status: 'pending' | 'paid' | 'failed' | 'refunded',
+    status: 'pending' | 'paid' | 'failed' | 'refunded' | 'voided',
 ): string {
     return paymentStatusLabels[status] ?? status;
 }
@@ -117,6 +120,15 @@ export function notificationMeta(
             return {
                 title: 'New order received',
                 icon: 'store',
+                href: data.seller_order_id
+                    ? `/seller/orders/${data.seller_order_id}`
+                    : null,
+                linkLabel: 'View seller order',
+            };
+        case 'seller_order_cancelled':
+            return {
+                title: 'Seller order cancelled',
+                icon: 'package',
                 href: data.seller_order_id
                     ? `/seller/orders/${data.seller_order_id}`
                     : null,

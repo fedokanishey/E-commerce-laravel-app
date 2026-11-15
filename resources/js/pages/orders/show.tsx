@@ -23,6 +23,8 @@ import type { Order, OrderStatus, SellerOrder } from '@/types/ecommerce';
 type OrderShowProps = {
     order: Order;
     canCancel: boolean;
+    amountDue: string;
+    isPartiallyCancelled: boolean;
 };
 
 const progressSteps: Array<{ status: OrderStatus; label: string }> = [
@@ -50,13 +52,22 @@ function sellerGroups(order: Order): SellerGroup[] {
     }));
 }
 
-export default function OrderShow({ order, canCancel }: OrderShowProps) {
+export default function OrderShow({
+    order,
+    canCancel,
+    amountDue,
+    isPartiallyCancelled,
+}: OrderShowProps) {
     const [cancelOpen, setCancelOpen] = useState(false);
     const [cancelling, setCancelling] = useState(false);
     const groups = sellerGroups(order);
     const currentStep = progressSteps.findIndex(
         (step) => step.status === order.status,
     );
+    const partiallyCancelled =
+        isPartiallyCancelled || Boolean(order.is_partially_cancelled);
+    const currentAmountDue = order.amount_due ?? amountDue;
+    const amountChanged = currentAmountDue !== order.grand_total;
 
     const cancelOrder = () => {
         setCancelling(true);
@@ -103,6 +114,13 @@ export default function OrderShow({ order, canCancel }: OrderShowProps) {
                     </Alert>
                 )}
 
+                {partiallyCancelled && order.status !== 'cancelled' && (
+                    <Alert tone="warning" className="mb-5">
+                        Some items in this order were cancelled. The remaining
+                        items are still being fulfilled.
+                    </Alert>
+                )}
+
                 <div className={cn(cardSurface, 'p-5 sm:p-6')}>
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                         <div>
@@ -116,13 +134,19 @@ export default function OrderShow({ order, canCancel }: OrderShowProps) {
                                 >
                                     {orderStatusLabel(order.status)}
                                 </Badge>
+                                {partiallyCancelled &&
+                                    order.status !== 'cancelled' && (
+                                        <Badge variant="danger" size="sm">
+                                            Partially cancelled
+                                        </Badge>
+                                    )}
                             </div>
                             <p className="text-small text-ink-muted mt-1">
                                 {order.items?.length ?? 0}{' '}
                                 {(order.items?.length ?? 0) === 1
                                     ? 'line item'
                                     : 'line items'}{' '}
-                                · {formatCurrency(order.grand_total)}
+                                A� {formatCurrency(currentAmountDue)}
                             </p>
                         </div>
 
@@ -132,7 +156,9 @@ export default function OrderShow({ order, canCancel }: OrderShowProps) {
                                 size="sm"
                                 onClick={() => setCancelOpen(true)}
                             >
-                                Cancel order
+                                {partiallyCancelled
+                                    ? 'Cancel remaining items'
+                                    : 'Cancel order'}
                             </Button>
                         )}
                     </div>
@@ -200,7 +226,12 @@ export default function OrderShow({ order, canCancel }: OrderShowProps) {
                         {groups.map((group, index) => (
                             <section
                                 key={group.sellerOrder?.id ?? index}
-                                className={cn(cardSurface, 'overflow-hidden')}
+                                className={cn(
+                                    cardSurface,
+                                    'overflow-hidden',
+                                    group.sellerOrder?.status === 'cancelled' &&
+                                        'border-danger/30',
+                                )}
                             >
                                 <div className="border-line flex flex-wrap items-center justify-between gap-2 border-b px-5 py-4">
                                     <div>
@@ -340,11 +371,24 @@ export default function OrderShow({ order, canCancel }: OrderShowProps) {
                                 </div>
 
                                 <div className="border-line text-body flex items-center justify-between gap-4 border-t pt-3 font-semibold">
-                                    <dt className="text-ink">Total</dt>
+                                    <dt className="text-ink">
+                                        {amountChanged
+                                            ? 'Original total'
+                                            : 'Total'}
+                                    </dt>
                                     <dd className="text-ink">
                                         {formatCurrency(order.grand_total)}
                                     </dd>
                                 </div>
+
+                                {amountChanged && (
+                                    <div className="text-body flex items-center justify-between gap-4 font-semibold">
+                                        <dt className="text-ink">Amount due</dt>
+                                        <dd className="text-ink">
+                                            {formatCurrency(currentAmountDue)}
+                                        </dd>
+                                    </div>
+                                )}
                             </dl>
                         </section>
 
@@ -435,7 +479,11 @@ export default function OrderShow({ order, canCancel }: OrderShowProps) {
             <Modal
                 open={cancelOpen}
                 onClose={() => setCancelOpen(false)}
-                title="Cancel this order?"
+                title={
+                    partiallyCancelled
+                        ? 'Cancel the remaining items?'
+                        : 'Cancel this order?'
+                }
                 description="The items will be returned to stock and this cannot be undone."
                 size="sm"
                 footer={
@@ -451,7 +499,9 @@ export default function OrderShow({ order, canCancel }: OrderShowProps) {
                             loading={cancelling}
                             onClick={cancelOrder}
                         >
-                            Cancel order
+                            {partiallyCancelled
+                                ? 'Cancel remaining items'
+                                : 'Cancel order'}
                         </Button>
                     </>
                 }

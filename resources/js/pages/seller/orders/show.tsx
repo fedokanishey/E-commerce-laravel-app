@@ -1,4 +1,5 @@
 import { Head, Link, useForm } from '@inertiajs/react';
+import { Alert } from '@/components/molecules/alert';
 import { Badge } from '@/components/atoms/badge';
 import { Button, buttonStyles } from '@/components/atoms/button';
 import { Icon, type IconName } from '@/components/atoms/icon';
@@ -23,6 +24,9 @@ type SellerOrderShowProps = {
         value: OrderStatus;
         label: string;
     }>;
+    parentAmountDue: string;
+    isParentPartiallyCancelled: boolean;
+    canConfirmCashCollection: boolean;
 };
 
 const progressSteps: Array<{
@@ -39,8 +43,12 @@ const progressSteps: Array<{
 export default function SellerOrderShow({
     sellerOrder,
     allowedTransitions,
+    parentAmountDue,
+    isParentPartiallyCancelled,
+    canConfirmCashCollection,
 }: SellerOrderShowProps) {
     const statusForm = useForm({ status: '' });
+    const collectionForm = useForm({});
     const order = sellerOrder.order;
     const items = sellerOrder.items ?? [];
     const currentIndex = progressSteps.findIndex(
@@ -52,6 +60,12 @@ export default function SellerOrderShow({
         statusForm.patch(`/seller/orders/${sellerOrder.id}/status`, {
             preserveScroll: true,
             onSuccess: () => statusForm.reset(),
+        });
+    };
+
+    const confirmCashCollection = () => {
+        collectionForm.post(`/seller/orders/${sellerOrder.id}/cod-collection`, {
+            preserveScroll: true,
         });
     };
 
@@ -76,6 +90,13 @@ export default function SellerOrderShow({
                     </Link>
                 }
             >
+                {isParentPartiallyCancelled && (
+                    <Alert tone="warning" className="mb-5">
+                        Some items in this customer order were cancelled. Your
+                        seller order is still part of the active order.
+                    </Alert>
+                )}
+
                 <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
                     <div className="space-y-6">
                         <section className={cn(cardSurface, 'p-5 sm:p-6')}>
@@ -90,14 +111,22 @@ export default function SellerOrderShow({
                                     </p>
                                 </div>
 
-                                <Badge
-                                    variant={orderStatusTone(
-                                        sellerOrder.status,
-                                    )}
-                                    dot
-                                >
-                                    {orderStatusLabel(sellerOrder.status)}
-                                </Badge>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <Badge
+                                        variant={orderStatusTone(
+                                            sellerOrder.status,
+                                        )}
+                                        dot
+                                    >
+                                        {orderStatusLabel(sellerOrder.status)}
+                                    </Badge>
+                                    {isParentPartiallyCancelled &&
+                                        sellerOrder.status !== 'cancelled' && (
+                                            <Badge variant="danger" size="sm">
+                                                Parent partially cancelled
+                                            </Badge>
+                                        )}
+                                </div>
                             </div>
 
                             {isCancelled ? (
@@ -410,7 +439,7 @@ export default function SellerOrderShow({
                                     </div>
                                     <div className="text-small flex items-center justify-between gap-3">
                                         <span className="text-ink-muted">
-                                            Status
+                                            Order payment status
                                         </span>
                                         <Badge
                                             variant={paymentStatusTone(
@@ -425,13 +454,42 @@ export default function SellerOrderShow({
                                     </div>
                                     <div className="text-small flex items-center justify-between gap-3">
                                         <span className="text-ink-muted">
-                                            Amount
+                                            Order amount due
                                         </span>
                                         <span className="text-ink">
-                                            {formatCurrency(
-                                                order.payment.amount,
-                                            )}
+                                            {formatCurrency(parentAmountDue)}
                                         </span>
+                                    </div>
+                                    <p className="text-caption text-ink-subtle">
+                                        Your total after coupon allocation is{' '}
+                                        {formatCurrency(sellerOrder.total)}.
+                                    </p>
+
+                                    <div className="border-line mt-3 border-t pt-3">
+                                        {sellerOrder.cod_collected_at ? (
+                                            <p className="text-small text-success-ink">
+                                                Cash collected on{' '}
+                                                {formatDateTime(
+                                                    sellerOrder.cod_collected_at,
+                                                )}
+                                                .
+                                            </p>
+                                        ) : canConfirmCashCollection ? (
+                                            <Button
+                                                size="sm"
+                                                loading={
+                                                    collectionForm.processing
+                                                }
+                                                onClick={confirmCashCollection}
+                                            >
+                                                Confirm cash collection
+                                            </Button>
+                                        ) : (
+                                            <p className="text-caption text-ink-muted">
+                                                Cash collection becomes
+                                                available after delivery.
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
                             ) : (

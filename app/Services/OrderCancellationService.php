@@ -9,42 +9,66 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\SellerOrder;
 use App\Notifications\OrderCancelled;
+use App\Notifications\SellerOrderCancelled;
+use App\Notifications\SellerOrderStatusUpdated;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class OrderCancellationService
 {
+    public function __construct(private OrderTotalsService $orderTotals) {}
+
     public function cancel(Order $order): Order
     {
-        $order = DB::transaction(function () use ($order) {
+        [$order, $cancelledSellerOrders] = DB::transaction(function () use ($order) {
             $order = Order::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
-            $order->load('sellerOrders');
 
-            if ($order->status !== OrderStatus::Pending) {
+            $sellerOrders = SellerOrder::query()
+                ->where('order_id', $order->id)
+                ->with('items')
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
+
+            $order->setRelation('sellerOrders', $sellerOrders);
+
+            if ($order->status === OrderStatus::Cancelled) {
                 throw ValidationException::withMessages([
-                    'order' => 'This order can no longer be cancelled.',
+                    'order' => 'This order has already been cancelled.',
                 ]);
             }
 
-            $blocked = $order->sellerOrders->contains(
-                fn (SellerOrder $sellerOrder) => $sellerOrder->status !== SellerOrderStatus::Pending
-            );
+            $activeSellerOrders = $sellerOrders
+                ->reject(fn (SellerOrder $sellerOrder) => $sellerOrder->status === SellerOrderStatus::Cancelled)
+                ->values();
 
-            if ($blocked) {
+            if ($activeSellerOrders->isEmpty()) {
+                throw ValidationException::withMessages([
+                    'order' => 'This order has already been cancelled.',
+                ]);
+            }
+
+            if ($activeSellerOrders->contains(
+                fn (SellerOrder $sellerOrder) => $sellerOrder->status !== SellerOrderStatus::Pending
+            )) {
                 throw ValidationException::withMessages([
                     'order' => 'This order is already being processed by a seller.',
                 ]);
             }
 
-            foreach ($order->items as $item) {
-                if ($item->product_id !== null) {
-                    Product::query()
-                        ->whereKey($item->product_id)
-                        ->increment('stock', $item->quantity);
+            foreach ($activeSellerOrders as $sellerOrder) {
+                foreach ($sellerOrder->items as $item) {
+                    if ($item->product_id !== null) {
+                        Product::query()
+                            ->whereKey($item->product_id)
+                            ->increment('stock', $item->quantity);
+                    }
                 }
+
+                $sellerOrder->update(['status' => SellerOrderStatus::Cancelled]);
             }
 
-            $order->sellerOrders()->update(['status' => SellerOrderStatus::Cancelled->value]);
             $order->update([
                 'status' => OrderStatus::Cancelled,
                 'cancelled_at' => now(),
@@ -52,11 +76,27 @@ class OrderCancellationService
 
             CouponUsage::query()->where('order_id', $order->id)->delete();
 
-            return $order;
+            $this->orderTotals->syncPayment($order, $sellerOrders);
+
+            return [$order, $activeSellerOrders];
         });
 
         $order->load('user');
-        $order->user->notify(new OrderCancelled($order));
+
+        if ($order->status === OrderStatus::Cancelled) {
+            $order->user->notify(new OrderCancelled($order));
+        } else {
+            /** @var Collection<int, SellerOrder> $cancelledSellerOrders */
+            foreach ($cancelledSellerOrders as $sellerOrder) {
+                $order->user->notify(new SellerOrderStatusUpdated($sellerOrder));
+            }
+        }
+
+        /** @var Collection<int, SellerOrder> $cancelledSellerOrders */
+        foreach ($cancelledSellerOrders as $sellerOrder) {
+            $sellerOrder->load('seller.user');
+            $sellerOrder->seller->user?->notify(new SellerOrderCancelled($sellerOrder));
+        }
 
         return $order;
     }

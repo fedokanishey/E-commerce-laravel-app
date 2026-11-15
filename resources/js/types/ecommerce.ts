@@ -168,6 +168,7 @@ export type SellerOrder = {
     subtotal: string;
     discount_total: string;
     total: string;
+    cod_collected_at: string | null;
     created_at: string;
     updated_at: string;
     order?: Order & {
@@ -276,7 +277,7 @@ export type Payment = {
     id: number;
     order_id: number;
     method: 'cod';
-    status: 'pending' | 'paid' | 'failed' | 'refunded';
+    status: 'pending' | 'paid' | 'failed' | 'refunded' | 'voided';
     amount: string;
     transaction_reference: string | null;
     paid_at: string | null;
@@ -316,6 +317,8 @@ export type Order = {
     shipping_country: string;
     placed_at: string;
     cancelled_at: string | null;
+    amount_due?: string;
+    is_partially_cancelled?: boolean;
     created_at: string;
     updated_at: string;
     items?: OrderItem[];

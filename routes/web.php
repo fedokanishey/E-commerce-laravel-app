@@ -141,5 +141,8 @@ Route::middleware('auth')->group(function () {
         Route::patch('orders/{sellerOrder}/status', [SellerOrderController::class, 'updateStatus'])
             ->middleware('throttle:seller-writes')
             ->name('orders.status.update');
+        Route::post('orders/{sellerOrder}/cod-collection', [SellerOrderController::class, 'confirmCashCollection'])
+            ->middleware('throttle:seller-writes')
+            ->name('orders.cod-collection');
     });
 });

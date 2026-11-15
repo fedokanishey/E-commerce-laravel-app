@@ -69,6 +69,15 @@ class CheckoutTest extends TestCase
         $this->assertSame(25.0, (float) $order->discount_total);
         $this->assertSame(225.0, (float) $order->grand_total);
 
+        $sellerOrderA = $order->sellerOrders()->where('seller_id', $sellerA->id)->sole();
+        $sellerOrderB = $order->sellerOrders()->where('seller_id', $sellerB->id)->sole();
+        $this->assertSame(200.0, (float) $sellerOrderA->subtotal);
+        $this->assertSame(20.0, (float) $sellerOrderA->discount_total);
+        $this->assertSame(180.0, (float) $sellerOrderA->total);
+        $this->assertSame(50.0, (float) $sellerOrderB->subtotal);
+        $this->assertSame(5.0, (float) $sellerOrderB->discount_total);
+        $this->assertSame(45.0, (float) $sellerOrderB->total);
+
         $this->assertSame(8, $productA->refresh()->stock);
         $this->assertSame(4, $productB->refresh()->stock);
         $this->assertSame(0, $cart->items()->count());
@@ -297,5 +306,69 @@ class CheckoutTest extends TestCase
 
         $this->assertSame(20.0, (float) $order->discount_total);
         $this->assertSame(80.0, (float) $order->grand_total);
+    }
+
+    public function test_checkout_allocates_fixed_coupon_discounts_across_sellers_with_exact_rounding(): void
+    {
+        $user = User::factory()->create();
+        $address = Address::factory()->create(['user_id' => $user->id]);
+        $sellerA = Seller::factory()->create();
+        $sellerB = Seller::factory()->create();
+        $sellerC = Seller::factory()->create();
+        $productA = Product::factory()->create([
+            'seller_id' => $sellerA->id,
+            'price' => 33.33,
+        ]);
+        $productB = Product::factory()->create([
+            'seller_id' => $sellerB->id,
+            'price' => 33.33,
+        ]);
+        $productC = Product::factory()->create([
+            'seller_id' => $sellerC->id,
+            'price' => 33.34,
+        ]);
+
+        $cart = Cart::factory()->create(['user_id' => $user->id]);
+
+        foreach ([$productA, $productB, $productC] as $product) {
+            CartItem::factory()->create([
+                'cart_id' => $cart->id,
+                'product_id' => $product->id,
+                'quantity' => 1,
+            ]);
+        }
+
+        Coupon::factory()->create([
+            'code' => 'ROUND',
+            'value' => 10.01,
+        ]);
+
+        $this->actingAs($user)->post(route('checkout.store'), [
+            'address_id' => $address->id,
+            'coupon_code' => 'ROUND',
+        ])->assertRedirect();
+
+        $order = Order::query()->sole();
+
+        $this->assertSame(100.0, (float) $order->subtotal);
+        $this->assertSame(10.01, (float) $order->discount_total);
+        $this->assertSame(89.99, (float) $order->grand_total);
+        $this->assertSame(89.99, (float) $order->payment()->sole()->amount);
+
+        $sellerOrders = $order->sellerOrders()->get()->keyBy('seller_id');
+
+        $this->assertSame(3.34, (float) $sellerOrders[$sellerA->id]->discount_total);
+        $this->assertSame(3.33, (float) $sellerOrders[$sellerB->id]->discount_total);
+        $this->assertSame(3.34, (float) $sellerOrders[$sellerC->id]->discount_total);
+        $this->assertSame(29.99, (float) $sellerOrders[$sellerA->id]->total);
+        $this->assertSame(30.00, (float) $sellerOrders[$sellerB->id]->total);
+        $this->assertSame(30.00, (float) $sellerOrders[$sellerC->id]->total);
+
+        $this->assertSame(
+            1001,
+            (int) round(
+                $sellerOrders->sum(fn ($sellerOrder) => (float) $sellerOrder->discount_total) * 100
+            )
+        );
     }
 }

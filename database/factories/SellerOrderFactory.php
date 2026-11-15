@@ -26,6 +26,7 @@ class SellerOrderFactory extends Factory
             'subtotal' => $subtotal,
             'discount_total' => 0,
             'total' => $subtotal,
+            'cod_collected_at' => null,
         ];
     }
 }

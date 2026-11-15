@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 /**
  * @property int $id
@@ -18,8 +19,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string $subtotal
  * @property string $discount_total
  * @property string $total
+ * @property Carbon|null $cod_collected_at
  */
-#[Fillable(['order_id', 'seller_id', 'status', 'subtotal', 'discount_total', 'total'])]
+#[Fillable(['order_id', 'seller_id', 'status', 'subtotal', 'discount_total', 'total', 'cod_collected_at'])]
 class SellerOrder extends Model
 {
     /** @use HasFactory<SellerOrderFactory> */
@@ -32,6 +34,7 @@ class SellerOrder extends Model
             'subtotal' => 'decimal:2',
             'discount_total' => 'decimal:2',
             'total' => 'decimal:2',
+            'cod_collected_at' => 'datetime',
         ];
     }
 

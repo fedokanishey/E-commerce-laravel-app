@@ -6,6 +6,7 @@ use App\Enums\SellerOrderStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Seller\UpdateSellerOrderStatusRequest;
 use App\Models\SellerOrder;
+use App\Services\OrderTotalsService;
 use App\Services\SellerOrderService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -38,16 +39,25 @@ class OrderController extends Controller
         ]);
     }
 
-    public function show(SellerOrder $sellerOrder): Response
+    public function show(SellerOrder $sellerOrder, OrderTotalsService $orderTotals): Response
     {
         Gate::authorize('view', $sellerOrder);
 
-        $sellerOrder->load(['order.user', 'items.product.images', 'order.payment']);
+        $sellerOrder->load([
+            'order.user',
+            'order.payment',
+            'order.sellerOrders',
+            'items.product.images',
+        ]);
 
         return Inertia::render('seller/orders/show', [
             'sellerOrder' => $sellerOrder,
             'allowedTransitions' => collect($sellerOrder->status->allowedTransitions())
                 ->map(fn (SellerOrderStatus $status) => ['value' => $status->value, 'label' => $status->label()]),
+            'parentAmountDue' => $orderTotals->amountDue($sellerOrder->order),
+            'isParentPartiallyCancelled' => $orderTotals->isPartiallyCancelled($sellerOrder->order),
+            'canConfirmCashCollection' => $sellerOrder->status === SellerOrderStatus::Delivered
+                && $sellerOrder->cod_collected_at === null,
         ]);
     }
 
@@ -64,5 +74,16 @@ class OrderController extends Controller
         );
 
         return back()->with('status', 'seller-order-status-updated');
+    }
+
+    public function confirmCashCollection(
+        SellerOrder $sellerOrder,
+        SellerOrderService $sellerOrderService,
+    ): RedirectResponse {
+        Gate::authorize('confirmCashCollection', $sellerOrder);
+
+        $sellerOrderService->confirmCashCollection($sellerOrder);
+
+        return back()->with('status', 'cod-collection-confirmed');
     }
 }

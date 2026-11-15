@@ -22,7 +22,10 @@ use Illuminate\Validation\ValidationException;
 
 class CheckoutService
 {
-    public function __construct(private CouponValidator $couponValidator) {}
+    public function __construct(
+        private CouponValidator $couponValidator,
+        private OrderTotalsService $orderTotals,
+    ) {}
 
     public function checkout(
         User $user,
@@ -47,7 +50,7 @@ class CheckoutService
                 ->keyBy('id');
 
             $lines = [];
-            $subtotal = 0.0;
+            $subtotalMinor = 0;
 
             foreach ($cart->items as $item) {
                 $product = $products->get($item->product_id);
@@ -70,36 +73,36 @@ class CheckoutService
                     ]);
                 }
 
-                $unitPrice = round((float) $product->price, 2);
-                $lineTotal = round($unitPrice * $item->quantity, 2);
-                $subtotal = round($subtotal + $lineTotal, 2);
+                $unitPriceMinor = $this->orderTotals->toMinorUnits($product->price);
+                $lineTotalMinor = $unitPriceMinor * $item->quantity;
+                $subtotalMinor += $lineTotalMinor;
 
                 $lines[] = [
                     'product_id' => $product->id,
                     'seller_id' => $product->seller_id,
                     'product_name' => $product->name,
                     'sku' => $product->sku,
-                    'unit_price' => $unitPrice,
+                    'unit_price_minor' => $unitPriceMinor,
                     'quantity' => $item->quantity,
-                    'line_total' => $lineTotal,
+                    'line_total_minor' => $lineTotalMinor,
                 ];
             }
 
-            $coupon = $this->couponValidator->findForSubtotal($user, $couponCode, $subtotal);
-            $discount = $coupon !== null
-                ? $this->couponValidator->discountFor($coupon, $subtotal)
-                : 0.0;
-            $shipping = 0.0;
-            $grandTotal = round(max(0, $subtotal - $discount) + $shipping, 2);
+            $coupon = $this->couponValidator->findForSubtotalMinor($user, $couponCode, $subtotalMinor);
+            $discountMinor = $coupon !== null
+                ? $this->couponValidator->discountForMinor($coupon, $subtotalMinor)
+                : 0;
+            $shippingMinor = 0;
+            $grandTotalMinor = max(0, $subtotalMinor - $discountMinor) + $shippingMinor;
 
             $order = Order::query()->create([
                 'user_id' => $user->id,
                 'number' => 'ORD-'.Str::upper((string) Str::ulid()),
                 'status' => OrderStatus::Pending,
-                'subtotal' => $subtotal,
-                'discount_total' => $discount,
-                'shipping_total' => $shipping,
-                'grand_total' => $grandTotal,
+                'subtotal' => $this->orderTotals->formatMinor($subtotalMinor),
+                'discount_total' => $this->orderTotals->formatMinor($discountMinor),
+                'shipping_total' => $this->orderTotals->formatMinor($shippingMinor),
+                'grand_total' => $this->orderTotals->formatMinor($grandTotalMinor),
                 'coupon_id' => $coupon?->id,
                 'placed_at' => now(),
                 ...$address->toShippingSnapshot(),
@@ -108,28 +111,45 @@ class CheckoutService
             $order->payment()->create([
                 'method' => $method,
                 'status' => PaymentStatus::Pending,
-                'amount' => $grandTotal,
+                'amount' => $this->orderTotals->formatMinor($grandTotalMinor),
             ]);
 
             $linesBySeller = collect($lines)->groupBy('seller_id');
 
+            $sellerSubtotalsMinor = $linesBySeller
+                ->map(fn ($sellerLines) => (int) $sellerLines->sum('line_total_minor'))
+                ->all();
+
+            $allocatedDiscountsMinor = $this->orderTotals->allocateDiscount(
+                $discountMinor,
+                $sellerSubtotalsMinor,
+            );
+
             foreach ($linesBySeller as $sellerId => $sellerLines) {
-                $sellerSubtotal = round((float) $sellerLines->sum('line_total'), 2);
+                $sellerSubtotalMinor = $sellerSubtotalsMinor[$sellerId];
+                $sellerDiscountMinor = $allocatedDiscountsMinor[$sellerId];
+                $sellerTotalMinor = $sellerSubtotalMinor - $sellerDiscountMinor;
 
                 $sellerOrder = SellerOrder::query()->create([
                     'order_id' => $order->id,
                     'seller_id' => $sellerId,
                     'status' => SellerOrderStatus::Pending,
-                    'subtotal' => $sellerSubtotal,
-                    'discount_total' => 0,
-                    'total' => $sellerSubtotal,
+                    'subtotal' => $this->orderTotals->formatMinor($sellerSubtotalMinor),
+                    'discount_total' => $this->orderTotals->formatMinor($sellerDiscountMinor),
+                    'total' => $this->orderTotals->formatMinor($sellerTotalMinor),
                 ]);
 
                 foreach ($sellerLines as $line) {
                     OrderItem::query()->create([
                         'order_id' => $order->id,
                         'seller_order_id' => $sellerOrder->id,
-                        ...$line,
+                        'product_id' => $line['product_id'],
+                        'seller_id' => $line['seller_id'],
+                        'product_name' => $line['product_name'],
+                        'sku' => $line['sku'],
+                        'unit_price' => $this->orderTotals->formatMinor($line['unit_price_minor']),
+                        'quantity' => $line['quantity'],
+                        'line_total' => $this->orderTotals->formatMinor($line['line_total_minor']),
                     ]);
                 }
             }
@@ -139,7 +159,7 @@ class CheckoutService
                     'coupon_id' => $coupon->id,
                     'user_id' => $user->id,
                     'order_id' => $order->id,
-                    'discount_amount' => $discount,
+                    'discount_amount' => $this->orderTotals->formatMinor($discountMinor),
                 ]);
             }
 

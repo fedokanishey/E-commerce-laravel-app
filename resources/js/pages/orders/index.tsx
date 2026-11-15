@@ -172,6 +172,17 @@ export default function OrdersIndex({
                                                             order.status,
                                                         )}
                                                     </Badge>
+                                                    {order.is_partially_cancelled &&
+                                                        order.status !==
+                                                            'cancelled' && (
+                                                            <Badge
+                                                                variant="danger"
+                                                                size="sm"
+                                                            >
+                                                                Partially
+                                                                cancelled
+                                                            </Badge>
+                                                        )}
                                                 </div>
 
                                                 <p className="text-caption text-ink-muted mt-1">
@@ -197,11 +208,16 @@ export default function OrdersIndex({
                                             <div className="flex items-center justify-between gap-5 lg:justify-end">
                                                 <div className="text-end">
                                                     <p className="text-caption text-ink-muted">
-                                                        Total
+                                                        {order.amount_due &&
+                                                        order.amount_due !==
+                                                            order.grand_total
+                                                            ? 'Amount due'
+                                                            : 'Total'}
                                                     </p>
                                                     <p className="text-body text-ink font-semibold">
                                                         {formatCurrency(
-                                                            order.grand_total,
+                                                            order.amount_due ??
+                                                                order.grand_total,
                                                         )}
                                                     </p>
                                                 </div>
