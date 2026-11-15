@@ -331,4 +331,59 @@ class SellerOrderTest extends TestCase
         $this->assertNotNull($sellerOrderA->refresh()->cod_collected_at);
         $this->assertNotNull($sellerOrderB->refresh()->cod_collected_at);
     }
+
+    public function test_seller_order_page_exposes_parent_amount_due_and_partial_cancellation_state(): void
+    {
+        $seller = Seller::factory()->create();
+        $other = Seller::factory()->create();
+        $order = Order::factory()->create([
+            'subtotal' => 150,
+            'grand_total' => 150,
+        ]);
+        $sellerOrder = SellerOrder::factory()->create([
+            'order_id' => $order->id,
+            'seller_id' => $seller->id,
+            'status' => SellerOrderStatus::Delivered,
+            'subtotal' => 100,
+            'discount_total' => 0,
+            'total' => 100,
+        ]);
+        SellerOrder::factory()->create([
+            'order_id' => $order->id,
+            'seller_id' => $other->id,
+            'status' => SellerOrderStatus::Cancelled,
+            'subtotal' => 50,
+            'discount_total' => 0,
+            'total' => 50,
+        ]);
+
+        $this->actingAs($seller->user)
+            ->get(route('seller.orders.show', $sellerOrder))
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('seller/orders/show')
+                ->where('parentAmountDue', '100.00')
+                ->where('isParentPartiallyCancelled', true)
+                ->where('canConfirmCashCollection', true));
+    }
+
+    public function test_last_seller_cancellation_notifies_the_customer_that_the_order_was_cancelled(): void
+    {
+        Notification::fake();
+
+        $seller = Seller::factory()->create();
+        $order = Order::factory()->create();
+        $sellerOrder = SellerOrder::factory()->create([
+            'order_id' => $order->id,
+            'seller_id' => $seller->id,
+            'status' => SellerOrderStatus::Pending,
+        ]);
+
+        $this->actingAs($seller->user)
+            ->patch(route('seller.orders.status.update', $sellerOrder), [
+                'status' => SellerOrderStatus::Cancelled->value,
+            ])
+            ->assertRedirect();
+
+        Notification::assertSentTo($order->user, OrderCancelled::class);
+    }
 }

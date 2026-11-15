@@ -46,9 +46,9 @@ app/
   Models/                Eloquent models with typed relation generics
   Policies/              Product, Order, SellerOrder, Address, ProductReview, Seller
   Services/              CartService, WishlistService, AddressService, CouponValidator,
-                         CheckoutService, OrderCancellationService, SellerOrderService,
+                         CheckoutService, OrderCancellationService, SellerOrderService, OrderTotalsService,
                          SellerDashboardService, ProductReviewService
-  Notifications/         OrderPlaced, NewSellerOrder, OrderCancelled, SellerOrderStatusUpdated
+  Notifications/         OrderPlaced, NewSellerOrder, OrderCancelled, SellerOrderCancelled, SellerOrderStatusUpdated
 routes/web.php           public → guest → auth → seller groups
 ```
 
@@ -60,24 +60,24 @@ Controllers stay thin: validation lives in Form Requests, business rules in serv
 - **Seller onboarding** creates an `active` seller immediately so the seller journey works end-to-end. `pending` and `suspended` remain available to moderation. `EnsureUserIsSeller` lets non-active sellers reach the dashboard to see their status, and redirects their other `/seller/*` requests back to that dashboard.
 - **Cart** is one per user, created lazily. Quantity is bounded by current stock; unavailable products are rejected with validation errors.
 - **Wishlist** is one per user; toggling returns added/removed feedback and products can move directly into the cart.
-- **Coupons** support fixed and percentage discounts, minimum order value, maximum discount cap, start/end window, total usage limit and per-user limit. Usage is recorded only after a successful checkout.
-- **Checkout** runs in a single transaction: locks products, revalidates availability/stock/seller status, splits lines by seller into `seller_orders`, snapshots product and shipping data into `order_items`/`orders`, records coupon usage, decrements stock, clears the cart, creates a pending COD payment and notifies the buyer and every seller.
-- **Order cancellation** is allowed only while the parent order and every seller order are still `pending`; stock is restored and all seller orders are cancelled atomically.
-- **Seller fulfilment** follows `pending → processing → shipped → delivered` (cancellation allowed before shipment). The parent order is recomputed from its seller orders, and the COD payment flips to `paid` once every remaining seller order is delivered.
+- **Coupons** support fixed and percentage discounts, minimum order value, maximum discount cap, start/end window, total usage limit and per-user limit. Usage is recorded only after a successful checkout. Discounts are allocated across seller orders in integer minor units using proportional largest-remainder rounding.
+- **Checkout** runs in a single transaction: locks products, revalidates availability/stock/seller status, splits lines by seller into `seller_orders`, allocates coupon discounts across seller orders, snapshots product and shipping data into `order_items`/`orders`, records coupon usage, decrements stock, clears the cart, creates a pending COD payment and notifies the buyer and every seller.
+- **Order cancellation** lets a customer cancel all remaining seller orders only while every non-cancelled seller order is still `pending`; already-cancelled groups are ignored. Stock is restored only for newly cancelled groups, coupon usage is released when the last active group is cancelled, and the parent payment is voided when the order becomes fully cancelled.
+- **Seller fulfilment** follows `pending → processing → shipped → delivered` (cancellation allowed before shipment). The parent order is recomputed from its active seller orders. Delivery does not mark payment as paid; the seller confirms COD collection per delivered seller order, and the parent payment becomes `paid` only when every active seller order is delivered and its cash is collected. Order totals stay immutable while `amount_due` is derived from active seller totals plus shipping.
 - **Reviews** require authentication and one review per user per product. `is_verified_purchase` is set when the user has a non-cancelled order item for the product.
 - **Notifications** are stored in the database for in-app inbox use; no email delivery is required in Phase 1.
 
 ## Authorization matrix
 
-| Resource                    | Rule                                                  |
-| --------------------------- | ----------------------------------------------------- |
-| Product edit/delete         | active seller who owns the product                    |
-| Seller order view           | owning seller; status changes only for active sellers |
-| Order view/cancel           | order owner; cancel only while fully pending          |
-| Address edit/delete         | address owner                                         |
-| Review edit/delete          | review author                                         |
-| Seller profile              | seller owner                                          |
-| Cart/wishlist item mutation | cart/wishlist owner                                   |
+| Resource                    | Rule                                                                          |
+| --------------------------- | ----------------------------------------------------------------------------- |
+| Product edit/delete         | active seller who owns the product                                            |
+| Seller order view           | owning seller; status changes only for active sellers                         |
+| Order view/cancel           | order owner; cancel remaining groups only while all active groups are pending |
+| Address edit/delete         | address owner                                                                 |
+| Review edit/delete          | review author                                                                 |
+| Seller profile              | seller owner                                                                  |
+| Cart/wishlist item mutation | cart/wishlist owner                                                           |
 
 ## Routes
 
@@ -87,7 +87,7 @@ Guest only: `/register`, `/login`, `/forgot-password`, `/reset-password/{token}`
 
 Authenticated: `/dashboard`, `/verify-email`, `/profile`, `/password`, `/cart`, `/wishlist`, `/addresses`, `/checkout`, `/orders`, `/notifications`, `/seller/onboarding`, plus review create/update/delete on `/products/{product}/reviews` and `/reviews/{review}`.
 
-Seller (`auth` + `seller` middleware): `/seller` dashboard, `/seller/statistics`, `/seller/profile`, `/seller/products` CRUD + image upload/delete, `/seller/orders` and status transitions.
+Seller (`auth` + `seller` middleware): `/seller` dashboard, `/seller/statistics`, `/seller/profile`, `/seller/products` CRUD + image upload/delete, `/seller/orders`, status transitions and per-order COD collection confirmation.
 
 Rate limiters (defined in `AppServiceProvider`): login 5/min per email+IP, register 5/min per IP, password reset 5/min per email+IP, cart 60/min, checkout 10/min, reviews 20/hour, seller writes 60/min.
 
@@ -98,12 +98,12 @@ Rate limiters (defined in `AppServiceProvider`): login 5/min per email+IP, regis
 ## Verification
 
 ```bash
-php artisan test --compact   # 98 tests, 565 assertions — passing
+php artisan test --compact   # 108 tests, 657 assertions — passing
 vendor/bin/phpstan analyse   # Larastan level 7 — 0 errors
 vendor/bin/pint --dirty      # clean
 ```
 
-Covered flows: registration/login/logout, catalog visibility and search, cart stock limits and ownership, wishlist toggle/move-to-cart, first-address defaulting, coupon-aware multi-seller checkout, cancellation with stock restore and coupon usage release, seller onboarding and product ownership, seller status transitions with COD capture, verified-purchase reviews, review editing/deletion, and profile/password settings.
+Covered flows: registration/login/logout, catalog visibility and search, cart stock limits and ownership, wishlist toggle/move-to-cart, first-address defaulting, coupon-aware multi-seller checkout, partial multi-seller cancellation with stock restore, coupon allocation and usage release, seller onboarding and product ownership, seller status transitions with explicit COD collection, verified-purchase reviews, review editing/deletion, and profile/password settings.
 
 Seeders were executed successfully against the local SQLite database.
 
@@ -112,6 +112,6 @@ Seeders were executed successfully against the local SQLite database.
 - Phase 3 pages are implemented, including customer review editing and deletion. Final browser-based QA is tracked in `docs/phase-3-qa-checklist.md`.
 - Product image uploads use the `public` disk; run `php artisan storage:link` in any environment that serves them.
 - No admin UI for approving products or moderating sellers in Phase 1; decisions are represented in the schema and console/DB.
-- Coupon discounts are applied at order level only; seller payouts are not netted in Phase 1.
+- Coupon discounts are allocated across seller orders for display and net totals; no payout settlement system exists in Phase 1.
 - Email verification is wired but app routes are not yet wrapped in the `verified` middleware; mail uses the `log` driver.
 - Phase 2 (atomic component design system) and Phase 3 (pages and integration) are complete; final browser QA follows.

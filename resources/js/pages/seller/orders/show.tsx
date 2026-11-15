@@ -48,7 +48,7 @@ export default function SellerOrderShow({
     canConfirmCashCollection,
 }: SellerOrderShowProps) {
     const statusForm = useForm({ status: '' });
-    const collectionForm = useForm({});
+    const collectionForm = useForm<{ status: string }>({ status: '' });
     const order = sellerOrder.order;
     const items = sellerOrder.items ?? [];
     const currentIndex = progressSteps.findIndex(
@@ -475,15 +475,28 @@ export default function SellerOrderShow({
                                                 .
                                             </p>
                                         ) : canConfirmCashCollection ? (
-                                            <Button
-                                                size="sm"
-                                                loading={
-                                                    collectionForm.processing
-                                                }
-                                                onClick={confirmCashCollection}
-                                            >
-                                                Confirm cash collection
-                                            </Button>
+                                            <>
+                                                <Button
+                                                    size="sm"
+                                                    loading={
+                                                        collectionForm.processing
+                                                    }
+                                                    onClick={
+                                                        confirmCashCollection
+                                                    }
+                                                >
+                                                    Confirm cash collection
+                                                </Button>
+                                                {collectionForm.errors
+                                                    .status && (
+                                                    <p className="text-caption text-danger mt-2">
+                                                        {
+                                                            collectionForm
+                                                                .errors.status
+                                                        }
+                                                    </p>
+                                                )}
+                                            </>
                                         ) : (
                                             <p className="text-caption text-ink-muted">
                                                 Cash collection becomes

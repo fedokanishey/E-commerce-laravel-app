@@ -65,7 +65,7 @@ Result: no exploitable cross-seller IDOR was found. Existing policies, form requ
 
 ```bash
 php artisan test --compact
-# 98 passed, 565 assertions
+# 108 passed, 657 assertions
 
 vendor/bin/phpstan analyse --no-progress --memory-limit=512M
 # 0 errors

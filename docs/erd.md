@@ -174,6 +174,7 @@ erDiagram
         decimal subtotal
         decimal discount_total
         decimal total
+        timestamp cod_collected_at
     }
 
     ORDER_ITEMS {
@@ -193,7 +194,7 @@ erDiagram
         bigint id PK
         bigint order_id FK,UK
         string method "cod"
-        string status "pending|paid|failed|refunded"
+        string status "pending|paid|failed|refunded|voided"
         decimal amount
         string transaction_reference
         timestamp paid_at
@@ -221,6 +222,8 @@ erDiagram
 Notes:
 
 - `order_items` and the `orders.shipping_*` columns are immutable snapshots captured at checkout; they survive later product or address edits.
-- A single order fans out into one `seller_orders` row per seller, while `order_items` still belong to the parent order.
+- Order and seller-order totals remain immutable after checkout. `amount_due` is derived from active seller-order totals plus order-level shipping, and `is_partially_cancelled` is derived from mixed cancelled/active seller orders.
+- A single order fans out into one `seller_orders` row per seller, while `order_items` still belong to the parent order. Coupon discounts are allocated to seller orders at checkout.
+- `seller_orders.cod_collected_at` records explicit cash collection for that seller order. The parent payment becomes `paid` only when all active seller orders are delivered and collected; full cancellation voids a pending payment.
 - `carts`, `wishlists`, and `sellers` are one-per-user (`user_id` unique).
 - Laravel's `cache`, `jobs`, `sessions`, `password_reset_tokens`, and `notifications` tables back the framework infrastructure.

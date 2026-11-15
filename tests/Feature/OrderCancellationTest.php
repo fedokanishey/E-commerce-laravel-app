@@ -252,7 +252,7 @@ class OrderCancellationTest extends TestCase
         Notification::assertSentTo($sellerB->user, SellerOrderCancelled::class);
     }
 
-    public function test_customer_partial_cancellation_notifies_the_remaining_seller_without_parent_cancellation(): void
+    public function test_customer_cancelling_remaining_items_notifies_the_remaining_seller_and_the_customer(): void
     {
         Notification::fake();
 
@@ -277,7 +277,7 @@ class OrderCancellationTest extends TestCase
 
         Notification::assertSentTo($activeSeller->user, SellerOrderCancelled::class);
         Notification::assertNotSentTo($cancelledSeller->user, SellerOrderCancelled::class);
-        Notification::assertSentTo($user, SellerOrderStatusUpdated::class);
-        Notification::assertNotSentTo($user, OrderCancelled::class);
+        Notification::assertSentTo($user, OrderCancelled::class);
+        Notification::assertNotSentTo($user, SellerOrderStatusUpdated::class);
     }
 }

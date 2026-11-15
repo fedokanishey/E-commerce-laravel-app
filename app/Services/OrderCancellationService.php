@@ -10,7 +10,6 @@ use App\Models\Product;
 use App\Models\SellerOrder;
 use App\Notifications\OrderCancelled;
 use App\Notifications\SellerOrderCancelled;
-use App\Notifications\SellerOrderStatusUpdated;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -82,15 +81,7 @@ class OrderCancellationService
         });
 
         $order->load('user');
-
-        if ($order->status === OrderStatus::Cancelled) {
-            $order->user->notify(new OrderCancelled($order));
-        } else {
-            /** @var Collection<int, SellerOrder> $cancelledSellerOrders */
-            foreach ($cancelledSellerOrders as $sellerOrder) {
-                $order->user->notify(new SellerOrderStatusUpdated($sellerOrder));
-            }
-        }
+        $order->user->notify(new OrderCancelled($order));
 
         /** @var Collection<int, SellerOrder> $cancelledSellerOrders */
         foreach ($cancelledSellerOrders as $sellerOrder) {
